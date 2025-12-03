@@ -138,6 +138,53 @@ const Commande = sequelize.define(
       allowNull: true,
     },
 
+    livreur_prenom: {
+      type: DataTypes.STRING(100),
+      allowNull: true,
+    },
+
+    livreur_email: {
+      type: DataTypes.STRING(100),
+      allowNull: true,
+    },
+
+    livreur_latitude: {
+      type: DataTypes.DECIMAL(9, 6),
+      allowNull: true,
+      comment: "Position actuelle du livreur (mise à jour en temps réel)"
+    },
+
+    livreur_longitude: {
+      type: DataTypes.DECIMAL(9, 6),
+      allowNull: true,
+      comment: "Position actuelle du livreur (mise à jour en temps réel)"
+    },
+
+    // Horodatage des changements de statut
+    date_acceptation: {
+      type: DataTypes.DATE,
+      allowNull: true,
+      comment: "Date à laquelle le livreur a accepté la commande"
+    },
+
+    date_livraison: {
+      type: DataTypes.DATE,
+      allowNull: true,
+      comment: "Date de livraison effective"
+    },
+
+    date_annulation: {
+      type: DataTypes.DATE,
+      allowNull: true,
+      comment: "Date d'annulation si applicable"
+    },
+
+    code_confirmation: {
+      type: DataTypes.STRING(4),
+      allowNull: true,
+      comment: "Code OTP pour valider la livraison"
+    },
+
     createdAt: {
       type: DataTypes.DATE,
       allowNull: false,

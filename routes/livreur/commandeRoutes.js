@@ -10,11 +10,13 @@ const {
   terminerLivraison,
   updatePosition,
   getCommandeDetails,
+  getHistoriqueLivraisons
 } = require("../../controllers/livreur/commandeController");
 
 // Routes protégées
 router.get("/disponibles", protectLivreur, getCommandesDisponibles);
 router.get("/mes-livraisons", protectLivreur, getMesLivraisons);
+router.get("/historique", protectLivreur, getHistoriqueLivraisons);
 router.get("/:id", protectLivreur, getCommandeDetails);
 router.post("/:id/accepter", protectLivreur, accepterCommande);
 router.put("/:id/terminer", protectLivreur, terminerLivraison);

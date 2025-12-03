@@ -29,19 +29,19 @@ const connectDB = async () => {
   try {
     await sequelize.authenticate();
     console.log('✅ Connecté à la base de données MySQL');
-    
+
     // MODIFIEZ CETTE LIGNE : Enlevez { alter: true }
     // await sequelize.sync({ alter: true }); // ← À SUPPRIMER
-    
+
     // UTILISEZ À LA PLACE :
     // Option 1: Pas de sync() du tout (recommandé pour production)
     // console.log('✅ Base de données connectée');
     // return;
-    
+
     // Option 2: sync() sans alter
     await sequelize.sync();
     console.log('✅ Modèles synchronisés (sans alter)');
-    
+
     // Option 3: sync() conditionnel
     // if (process.env.NODE_ENV === 'development') {
     //   await sequelize.sync();
@@ -51,7 +51,7 @@ const connectDB = async () => {
     // }
   } catch (error) {
     console.error('❌ Erreur de connexion à la base de données:', error.message);
-    
+
     // Affichez plus de détails pour le débogage
     if (error.message.includes('Trop de clefs')) {
       console.error('\n⚠️  ERREUR: Trop d\'index dans la table MySQL');
@@ -60,7 +60,7 @@ const connectDB = async () => {
       console.error('2. Utilisez seulement sequelize.authenticate() sans sync()');
       console.error('3. Pour les changements, utilisez des migrations manuelles');
     }
-    
+
     process.exit(1);
   }
 };

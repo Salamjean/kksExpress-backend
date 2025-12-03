@@ -13,8 +13,6 @@ const asyncHandler = (fn) => (req, res, next) => {
 // @route   GET /api/admin/dashboard/stats
 const getDashboardStats = asyncHandler(async (req, res) => {
   try {
-    console.log('📊 Récupération stats dashboard admin');
-    
     const today = new Date();
     today.setHours(0, 0, 0, 0);
     
@@ -239,14 +237,17 @@ const getRecentCommandes = asyncHandler(async (req, res) => {
   try {
     const limit = parseInt(req.query.limit) || 10;
     
+    // On récupère les commandes AVEC les informations du livreur
+    // Note: Assure-toi que les associations (Commande.belongsTo(Livreur)) sont bien définies dans tes modèles
     const commandes = await Commande.findAll({
       order: [['createdAt', 'DESC']],
       limit: limit,
       include: [
         {
           model: Livreur,
-          as: 'livreur',
-          attributes: ['id', 'nom', 'prenom', 'telephone']
+          as: 'livreur', // Enlève cette ligne si tu n'as pas défini d'alias 'as' dans ton modèle Commande
+          attributes: ['id', 'nom', 'prenom', 'telephone'],
+          required: false // LEFT JOIN : permet de retourner la commande même sans livreur
         }
       ]
     });
@@ -259,10 +260,24 @@ const getRecentCommandes = asyncHandler(async (req, res) => {
 
   } catch (error) {
     console.error('❌ Erreur récupération commandes récentes:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Erreur lors de la récupération des commandes récentes'
-    });
+    
+    // Fallback de sécurité : Si l'include plante (problème d'association), on renvoie les commandes sans livreur
+    try {
+        const commandesSimple = await Commande.findAll({
+            order: [['createdAt', 'DESC']],
+            limit: limit
+        });
+        return res.status(200).json({
+            success: true,
+            count: commandesSimple.length,
+            commandes: commandesSimple
+        });
+    } catch (e) {
+        res.status(500).json({
+            success: false,
+            message: 'Erreur lors de la récupération des commandes récentes'
+        });
+    }
   }
 });
 
@@ -333,8 +348,14 @@ const getActiveLivreurs = asyncHandler(async (req, res) => {
           }
         });
 
+        // CORRECTION MAJEURE ICI : Conversion explicite en float pour éviter les crashs React
+        const lat = livreur.latitude ? parseFloat(livreur.latitude) : null;
+        const lng = livreur.longitude ? parseFloat(livreur.longitude) : null;
+
         return {
           ...livreur.toJSON(),
+          latitude: lat,
+          longitude: lng,
           commandes_en_cours: commandesEnCours
         };
       })

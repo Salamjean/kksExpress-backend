@@ -27,10 +27,10 @@ const generateResetToken = () => {
 const sendActivationEmail = async (email, nom, prenom, resetToken) => {
   try {
     console.log('🔄 Tentative d\'envoi d\'email d\'activation à:', email);
-    
+
     // Générer l'URL de réinitialisation (à adapter selon votre frontend)
     const resetUrl = `${process.env.FRONTEND_URL}/definir-mot-de-passe?token=${resetToken}&email=${encodeURIComponent(email)}`;
-    
+
     // En production, vous stockeriez le token dans la base de données avec une date d'expiration
     // await storeResetToken(email, resetToken);
 
@@ -111,17 +111,17 @@ const sendActivationEmail = async (email, nom, prenom, resetToken) => {
     const info = await transporter.sendMail(mailOptions);
     console.log('✅ Email d\'activation envoyé avec succès');
     console.log('📧 Message ID:', info.messageId);
-    
+
     return resetToken; // Retourne le token pour stockage en base
-    
+
   } catch (error) {
     console.error('❌ Erreur lors de l\'envoi de l\'email d\'activation:');
     console.error('- Message:', error.message);
-    
+
     if (error.response) {
       console.error('- Response:', error.response);
     }
-    
+
     throw error;
   }
 };
@@ -133,7 +133,7 @@ const sendOTPCodeEmail = async (email, nom, prenom, otpCode) => {
   try {
     console.log('📧 Envoi code OTP à:', email);
     console.log('🔢 Code OTP:', otpCode);
-    
+
     const mailOptions = {
       from: `"KKS-Express" <${process.env.SMTP_USER}>`,
       to: email,
@@ -279,9 +279,9 @@ const sendOTPCodeEmail = async (email, nom, prenom, otpCode) => {
     await transporter.verify();
     const info = await transporter.sendMail(mailOptions);
     console.log('✅ Email OTP envoyé avec succès');
-    
+
     return true;
-    
+
   } catch (error) {
     console.error('❌ Erreur envoi email OTP:', error.message);
     throw error;
@@ -292,14 +292,14 @@ const sendOTPCodeEmail = async (email, nom, prenom, otpCode) => {
 const sendWelcomeEmail = async (userEmail, nom, prenom) => {
   try {
     console.log(`📧 Envoi email de bienvenue à: ${userEmail}`);
-    
+
     // UTILISEZ VOS VARIABLES .env
     const fromEmail = process.env.MAIL_FROM_ADDRESS || 'contact@edemarchee-ci.com';
     const fromName = process.env.SMTP_FROM || 'KKS Express';
-    
+
     console.log(`📤 Expéditeur: ${fromName} <${fromEmail}>`);
     console.log(`📥 Destinataire: ${userEmail}`);
-    
+
     const mailOptions = {
       from: {
         name: fromName,
@@ -383,19 +383,209 @@ const sendWelcomeEmail = async (userEmail, nom, prenom) => {
 
     // Envoyer l'email
     const info = await transporter.sendMail(mailOptions);
-    
+
     console.log(`✅ Email envoyé ! Message ID: ${info.messageId}`);
     return true;
-    
+
   } catch (error) {
     console.error(`💥 Erreur envoi email:`, error.message);
     throw error;
   }
 };
 
+// Ajoutez la fonction sendOrderStatusEmail pour les notifications de commande
+const sendOrderStatusEmail = async (userEmail, nom, prenom, commande) => {
+  try {
+    console.log(`📧 Envoi notification statut commande à: ${userEmail}`);
+
+    const fromEmail = process.env.MAIL_FROM_ADDRESS || 'contact@edemarchee-ci.com';
+    const fromName = process.env.SMTP_FROM || 'KKS Express';
+
+    let subject = '';
+    let messageTitle = '';
+    let messageBody = '';
+    let color = '#2663EB'; // Bleu par défaut
+
+    // Personnaliser le message selon le statut
+    switch (commande.statut) {
+      case 'en_cours':
+        subject = `🚚 Votre commande ${commande.reference} est en route !`;
+        messageTitle = 'Votre commande est en route';
+        messageBody = `
+          <p>Bonne nouvelle ! Votre commande <strong>${commande.reference}</strong> a été prise en charge par notre livreur.</p>
+          <div style="background-color: #e8f4fd; padding: 15px; border-radius: 8px; margin: 20px 0;">
+            <p><strong>Livreur :</strong> ${commande.livreur_prenom} ${commande.livreur_nom}</p>
+            <p><strong>Téléphone :</strong> ${commande.livreur_telephone}</p>
+          </div>
+          <p>Vous pouvez suivre votre livraison en temps réel sur notre application.</p>
+        `;
+        color = '#2663EB'; // Bleu
+        break;
+
+      case 'livree':
+        subject = `✅ Votre commande ${commande.reference} a été livrée !`;
+        messageTitle = 'Commande livrée avec succès';
+        messageBody = `
+          <p>Votre commande <strong>${commande.reference}</strong> est bien arrivée à destination.</p>
+          <p>Merci de votre confiance !</p>
+          <div style="background-color: #d4edda; padding: 15px; border-radius: 8px; margin: 20px 0; border-left: 4px solid #28a745;">
+            <p><strong>Date de livraison :</strong> ${new Date().toLocaleString('fr-FR')}</p>
+            <p><strong>Lieu :</strong> ${commande.destinataire_adresse}</p>
+          </div>
+        `;
+        color = '#28a745'; // Vert
+        break;
+
+      case 'annulee':
+        subject = `❌ Votre commande ${commande.reference} a été annulée`;
+        messageTitle = 'Commande annulée';
+        messageBody = `
+          <p>Votre commande <strong>${commande.reference}</strong> a été annulée.</p>
+          <p>Si vous n'êtes pas à l'origine de cette annulation, veuillez nous contacter rapidement.</p>
+        `;
+        color = '#dc3545'; // Rouge
+        break;
+
+      default:
+        return; // Ne rien envoyer pour les autres statuts
+    }
+
+    const mailOptions = {
+      from: {
+        name: fromName,
+        address: fromEmail
+      },
+      to: userEmail,
+      subject: subject,
+      html: `
+        <!DOCTYPE html>
+        <html>
+        <head>
+          <meta charset="utf-8">
+          <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        </head>
+        <body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333;">
+          <div style="max-width: 600px; margin: 0 auto; padding: 20px;">
+            <div style="background-color: ${color}; color: white; padding: 20px; text-align: center; border-radius: 5px 5px 0 0;">
+              <h1 style="margin: 0;">KKS Express</h1>
+              <p style="margin: 10px 0 0;">${messageTitle}</p>
+            </div>
+            
+            <div style="background-color: #f9f9f9; padding: 30px; border-radius: 0 0 5px 5px;">
+              <h2 style="color: ${color};">Bonjour ${prenom} ${nom},</h2>
+              
+              ${messageBody}
+              
+              <div style="text-align: center; margin-top: 30px;">
+                <a href="${process.env.FRONTEND_URL}/commandes/${commande.id}" style="background-color: ${color}; color: white; padding: 12px 25px; text-decoration: none; border-radius: 5px; font-weight: bold;">
+                  Voir ma commande
+                </a>
+              </div>
+              
+              <hr style="border: none; border-top: 1px solid #ddd; margin: 30px 0;">
+              
+              <p style="font-size: 12px; color: #999; text-align: center;">
+                © ${new Date().getFullYear()} KKS Express. Tous droits réservés.<br>
+                Cet email vous a été envoyé automatiquement.
+              </p>
+            </div>
+          </div>
+        </body>
+        </html>
+      `
+    };
+
+    const info = await transporter.sendMail(mailOptions);
+    console.log(`✅ Notification envoyée ! Message ID: ${info.messageId}`);
+    return true;
+
+  } catch (error) {
+    console.error(`💥 Erreur envoi notification:`, error.message);
+    // On ne bloque pas le flux si l'email échoue, on log juste l'erreur
+    return false;
+  }
+};
+
+// Envoyer le code de confirmation de livraison au client
+const sendDeliveryCodeEmail = async (userEmail, nom, prenom, commande) => {
+  try {
+    console.log(`📧 Envoi code de livraison à: ${userEmail}`);
+    
+    const fromEmail = process.env.MAIL_FROM_ADDRESS || 'contact@edemarchee-ci.com';
+    const fromName = process.env.SMTP_FROM || 'KKS Express';
+    
+    const mailOptions = {
+      from: {
+        name: fromName,
+        address: fromEmail
+      },
+      to: userEmail,
+      subject: `🔐 Code de livraison - Commande ${commande.reference}`,
+      html: `
+        <!DOCTYPE html>
+        <html>
+        <head>
+          <meta charset="utf-8">
+          <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        </head>
+        <body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333;">
+          <div style="max-width: 600px; margin: 0 auto; padding: 20px;">
+            <div style="background-color: #2663EB; color: white; padding: 20px; text-align: center; border-radius: 5px 5px 0 0;">
+              <h1 style="margin: 0;">KKS Express</h1>
+              <p style="margin: 10px 0 0;">Code de confirmation de livraison</p>
+            </div>
+            
+            <div style="background-color: #f9f9f9; padding: 30px; border-radius: 0 0 5px 5px;">
+              <h2 style="color: #2663EB;">Bonjour ${prenom} ${nom},</h2>
+              
+              <p>Votre commande <strong>${commande.reference}</strong> a été créée avec succès.</p>
+              
+              <div style="background-color: #fff3cd; padding: 20px; border-radius: 8px; margin: 25px 0; border-left: 4px solid #ffc107;">
+                <h3 style="color: #856404; margin-top: 0;">⚠️ Important - Code de livraison</h3>
+                <p style="margin: 10px 0;">Voici votre <strong>code de confirmation</strong> à communiquer au livreur lors de la remise de votre colis :</p>
+                <div style="text-align: center; font-size: 48px; font-weight: bold; letter-spacing: 10px; color: #2663EB; background: white; padding: 20px; border-radius: 8px; margin: 15px 0; border: 3px solid #2663EB;">
+                  ${commande.code_confirmation}
+                </div>
+                <p style="margin: 10px 0; color: #856404;"><strong>Ne partagez ce code qu'avec le livreur au moment de la livraison.</strong></p>
+              </div>
+              
+              <div style="background-color: white; padding: 15px; border-left: 4px solid #2663EB; margin: 20px 0;">
+                <p><strong>Référence de commande :</strong> ${commande.reference}</p>
+                <p><strong>Destination :</strong> ${commande.destinataire_adresse}</p>
+                <p><strong>Type de colis :</strong> ${commande.type_colis}</p>
+              </div>
+              
+              <p style="color: #666; font-size: 14px; margin-top: 25px;">
+                Vous recevrez une notification lorsqu'un livreur acceptera votre commande.
+              </p>
+              
+              <hr style="border: none; border-top: 1px solid #ddd; margin: 30px 0;">
+              
+              <p style="font-size: 12px; color: #999; text-align: center;">
+                © ${new Date().getFullYear()} KKS Express. Tous droits réservés.<br>
+                Cet email vous a été envoyé automatiquement.
+              </p>
+            </div>
+          </div>
+        </body>
+        </html>
+      `
+    };
+
+    const info = await transporter.sendMail(mailOptions);
+    console.log(`✅ Code de livraison envoyé ! Message ID: ${info.messageId}`);
+    return true;
+    
+  } catch (error) {
+    console.error(`💥 Erreur envoi code livraison:`, error.message);
+    return false;
+  }
+};
 module.exports = {
   sendActivationEmail,
   sendWelcomeEmail,
   generateResetToken,
-  sendOTPCodeEmail
+  sendOTPCodeEmail,
+  sendOrderStatusEmail,
+  sendDeliveryCodeEmail
 };
