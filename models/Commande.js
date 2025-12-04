@@ -80,6 +80,24 @@ const Commande = sequelize.define(
       allowNull: false,
     },
 
+    destinataire_nom: {
+      type: DataTypes.STRING(100),
+      allowNull: true,
+      comment: "Nom du destinataire"
+    },
+
+    destinataire_contact: {
+      type: DataTypes.STRING(20),
+      allowNull: true,
+      comment: "Téléphone du destinataire"
+    },
+
+    destinataire_email: {
+      type: DataTypes.STRING(100),
+      allowNull: true,
+      comment: "Email du destinataire"
+    },
+
     // Colis
     type_colis: {
       type: DataTypes.ENUM("Documents", "Nourritures", "Appareils", "Autres"),
@@ -104,7 +122,8 @@ const Commande = sequelize.define(
     statut: {
       type: DataTypes.ENUM(
         "en_attente",
-        "confirmee",
+        "acceptee",
+        "recuperee",
         "en_cours",
         "livree",
         "annulee"
@@ -177,6 +196,18 @@ const Commande = sequelize.define(
       type: DataTypes.DATE,
       allowNull: true,
       comment: "Date d'annulation si applicable"
+    },
+
+    date_recuperation: {
+      type: DataTypes.DATE,
+      allowNull: true,
+      comment: "Date à laquelle le livreur a récupéré le colis"
+    },
+
+    date_debut_livraison: {
+      type: DataTypes.DATE,
+      allowNull: true,
+      comment: "Date à laquelle le livreur a commencé la livraison vers le destinataire"
     },
 
     code_confirmation: {

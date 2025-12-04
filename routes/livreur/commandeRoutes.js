@@ -6,6 +6,8 @@ const { protectLivreur } = require("../../middleware/livreurMiddleware"); // Vot
 const {
   getCommandesDisponibles,
   accepterCommande,
+  recupererColis,         // ← NOUVEAU
+  demarrerLivraison,     // ← NOUVEAU
   getMesLivraisons,
   terminerLivraison,
   updatePosition,
@@ -19,6 +21,8 @@ router.get("/mes-livraisons", protectLivreur, getMesLivraisons);
 router.get("/historique", protectLivreur, getHistoriqueLivraisons);
 router.get("/:id", protectLivreur, getCommandeDetails);
 router.post("/:id/accepter", protectLivreur, accepterCommande);
+router.post("/:id/recuperer", protectLivreur, recupererColis);               // ← NOUVEAU
+router.post("/:id/demarrer-livraison", protectLivreur, demarrerLivraison);  // ← NOUVEAU
 router.put("/:id/terminer", protectLivreur, terminerLivraison);
 router.post("/position", protectLivreur, updatePosition);
 

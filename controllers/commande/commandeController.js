@@ -1,7 +1,7 @@
 // controllers/commande/commandeController.js
 const Commande = require("../../models/Commande");
 const User = require("../../models/User");
-const { sendDeliveryCodeEmail } = require("../../utils/emailService");
+// const { sendDeliveryCodeEmail } = require("../../utils/emailService"); // Utilisé dans recupererColis seulement
 const { calculateDistance, estimateDeliveryTime, formatEstimatedTime, getStatutFrancais } = require("../../utils/geoUtils");
 
 // Fonction wrapper pour gérer les erreurs async
@@ -33,6 +33,9 @@ const createCommande = asyncHandler(async (req, res) => {
     destinataire_latitude,
     destinataire_longitude,
     destinataire_adresse,
+    destinataire_nom,
+    destinataire_email,
+    destinataire_contact,
     expediteur_contact_alt,
     expediteur_latitude,
     expediteur_longitude,
@@ -49,6 +52,13 @@ const createCommande = asyncHandler(async (req, res) => {
     return res.status(400).json({
       success: false,
       message: "Les coordonnées et adresse du destinataire sont obligatoires"
+    });
+  }
+
+  if (!destinataire_contact) {
+    return res.status(400).json({
+      success: false,
+      message: "Le numéro de téléphone du destinataire est obligatoire"
     });
   }
 
@@ -81,6 +91,9 @@ const createCommande = asyncHandler(async (req, res) => {
       destinataire_latitude,
       destinataire_longitude,
       destinataire_adresse,
+      destinataire_nom: destinataire_nom || null,
+      destinataire_email: destinataire_email || null,
+      destinataire_contact,
 
       // Expéditeur
       expediteur_contact_alt: expediteur_contact_alt || null,
@@ -105,15 +118,7 @@ const createCommande = asyncHandler(async (req, res) => {
     // Créer la commande
     const commande = await Commande.create(commandeData);
 
-    // Envoyer le code de confirmation par email
-    if (commande.user_email) {
-      await sendDeliveryCodeEmail(
-        commande.user_email,
-        commande.user_nom,
-        commande.user_prenom,
-        commande
-      );
-    }
+    console.log(`✅ Commande créée: ${commande.reference}`);
 
     return res.status(201).json({
       success: true,

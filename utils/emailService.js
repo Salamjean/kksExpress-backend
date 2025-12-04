@@ -408,6 +408,33 @@ const sendOrderStatusEmail = async (userEmail, nom, prenom, commande) => {
 
     // Personnaliser le message selon le statut
     switch (commande.statut) {
+       case 'acceptee':
+        subject = `✅ Commande ${commande.reference} acceptée`;
+        messageTitle = 'Livreur en route pour récupérer votre colis';
+        messageBody = `
+          <p>Bonne nouvelle ! Un livreur a accepté votre commande <strong>${commande.reference}</strong>.</p>
+          <div style="background-color: #e8f4fd; padding: 15px; border-radius: 8px; margin: 20px 0;">
+            <p><strong>Livreur :</strong> ${commande.livreur_prenom} ${commande.livreur_nom}</p>
+            <p><strong>Téléphone :</strong> ${commande.livreur_telephone}</p>
+          </div>
+          <p>Le livreur va se rendre à l'adresse de récupération pour prendre en charge votre colis.</p>
+        `;
+        color = '#17a2b8'; // Cyan
+        break;
+
+      case 'recuperee':
+        subject = `📦 Colis récupéré - ${commande.reference}`;
+        messageTitle = 'Votre colis a été récupéré';
+        messageBody = `
+          <p>Le livreur a récupéré votre colis <strong>${commande.reference}</strong>.</p>
+          <p>Il démarrera la livraison vers le destinataire dès que possible.</p>
+          <div style="background-color: #fff3cd; padding: 15px; border-radius: 8px; margin: 20px 0; border-left: 4px solid #ffc107;">
+            <p><strong>📍 Important :</strong> Vous recevrez une notification lorsque le livreur sera en route vers le destinataire.</p>
+          </div>
+        `;
+        color = '#6c757d'; // Gris
+        break;
+        
       case 'en_cours':
         subject = `🚚 Votre commande ${commande.reference} est en route !`;
         messageTitle = 'Votre commande est en route';

@@ -1,6 +1,6 @@
 const Commande = require("../../models/Commande");
 const Livreur = require("../../models/Livreur");
-const { sendOrderStatusEmail } = require("../../utils/emailService");
+const { sendOrderStatusEmail, sendDeliveryCodeEmail } = require("../../utils/emailService");
 
 // Fonction wrapper pour gérer les erreurs async
 const asyncHandler = (fn) => (req, res, next) => {
@@ -48,20 +48,20 @@ const accepterCommande = asyncHandler(async (req, res) => {
       });
     }
 
-    // Vérifier le nombre maximum de commandes simultanées
-    const commandesEnCours = await Commande.count({
+    // Vérifier le nombre maximum de commandes actives (acceptee, recuperee, en_cours)
+    const commandesActives = await Commande.count({
       where: {
         livreur_id: livreurId,
-        statut: 'en_cours'
+        statut: ['acceptee', 'recuperee', 'en_cours']
       }
     });
 
     const MAX_COMMANDES_SIMULTANEES = 5;
 
-    if (commandesEnCours >= MAX_COMMANDES_SIMULTANEES) {
+    if (commandesActives >= MAX_COMMANDES_SIMULTANEES) {
       return res.status(400).json({
         success: false,
-        message: `Vous avez déjà ${commandesEnCours} commandes en cours. Maximum: ${MAX_COMMANDES_SIMULTANEES}`
+        message: `Vous avez déjà ${commandesActives} commandes actives. Maximum: ${MAX_COMMANDES_SIMULTANEES}`
       });
     }
 
@@ -74,7 +74,7 @@ const accepterCommande = asyncHandler(async (req, res) => {
       livreur_email: livreur.email,
       livreur_latitude: livreur.latitude,
       livreur_longitude: livreur.longitude,
-      statut: 'en_cours',
+      statut: 'acceptee',  // ← MODIFIÉ: ancien 'en_cours', maintenant 'acceptee'
       date_acceptation: new Date()
     });
 
@@ -92,13 +92,13 @@ const accepterCommande = asyncHandler(async (req, res) => {
 
     return res.status(200).json({
       success: true,
-      message: "Commande acceptée avec succès",
+      message: "Commande acceptée avec succès. Rendez-vous chez l'expéditeur pour récupérer le colis.",
       commande: {
         id: commande.id,
         reference: commande.reference,
         statut: commande.statut,
-        destinataire_adresse: commande.destinataire_adresse,
         expediteur_adresse: commande.expediteur_adresse,
+        destinataire_adresse: commande.destinataire_adresse,
         date_acceptation: commande.date_acceptation
       }
     });
@@ -110,6 +110,179 @@ const accepterCommande = asyncHandler(async (req, res) => {
       message: "Erreur lors de l'acceptation de la commande"
     });
   }
+});
+
+// @desc    Récupérer le colis chez l'expéditeur
+// @route   POST /api/livreur/commandes/:id/recuperer
+const recupererColis = asyncHandler(async (req, res) => {
+  console.log("\n📦 RÉCUPÉRATION DU COLIS PAR LIVREUR");
+
+  const { id } = req.params;
+  const livreurId = req.livreur.id;
+
+  try {
+    const commande = await Commande.findOne({
+      where: { id, livreur_id: livreurId }
+    });
+
+    if (!commande) {
+      return res.status(404).json({
+        success: false,
+        message: "Commande non trouvée ou non assignée"
+      });
+    }
+
+    // Vérifier le statut
+    if (commande.statut !== 'acceptee') {
+      return res.status(400).json({
+        success: false,
+        message: "Cette commande doit d'abord être acceptée"
+      });
+    }
+
+    // Générer le code OTP si pas encore généré
+    if (!commande.code_confirmation) {
+      commande.code_confirmation = Math.floor(1000 + Math.random() * 9000).toString();
+    }
+
+    // Mettre à jour le statut
+    await commande.update({
+      statut: 'recuperee',
+      date_recuperation: new Date()
+    });
+
+    console.log(`📦 Colis récupéré: ${commande.reference}`);
+
+    // 🔐 ENVOI DU CODE OTP À L'UTILISATEUR (EXPÉDITEUR)
+    if (commande.user_email) {
+      await sendDeliveryCodeEmail(
+        commande.user_email,
+        commande.user_nom,
+        commande.user_prenom,
+        commande
+      );
+    }
+
+    // 🔐 ENVOI DU CODE OTP AU DESTINATAIRE (SI EMAIL FOURNI)
+    if (commande.destinataire_email) {
+      await sendDeliveryCodeEmail(
+        commande.destinataire_email,
+        commande.destinataire_nom || 'Destinataire',
+        '',
+        commande
+      );
+    }
+
+    // Envoyer notification de récupération
+    if (commande.user_email) {
+      await sendOrderStatusEmail(
+        commande.user_email,
+        commande.user_nom,
+        commande.user_prenom,
+        commande
+      );
+      
+    }
+
+    return res.status(200).json({
+      success: true,
+      message: "Colis récupéré avec succès. Code OTP envoyé.",
+      commande: {
+        id: commande.id,
+        reference: commande.reference,
+        statut: commande.statut,
+        date_recuperation: commande.date_recuperation,
+        code_sent_to: {
+          user_email: commande.user_email ? '✓' : null,
+          destinataire_email: commande.destinataire_email ? '✓' : null
+        }
+      }
+    });
+
+  } catch (error) {
+    console.error("Erreur récupération colis:", error);
+    return res.status(500).json({
+      success: false,
+      message: "Erreur lors de la récupération du colis"
+    });
+  }
+});
+
+// @desc    Démarrer la livraison vers le destinataire
+// @route   POST /api/livreur/commandes/:id/demarrer-livraison
+const demarrerLivraison = asyncHandler(async (req, res) => {
+  console.log("\n🚚 DÉMARRAGE DE LA LIVRAISON");
+
+  const { id } = req.params;
+  const livreurId = req.livreur.id;
+
+  try {
+    const commande = await Commande.findOne({
+      where: { id, livreur_id: livreurId }
+    });
+
+    if (!commande) {
+      return res.status(404).json({
+        success: false,
+        message: "Commande non trouvée ou non assignée"
+      });
+    }
+
+    // Vérifier le statut
+    if (commande.statut !== 'recuperee') {
+      return res.status(400).json({
+        success: false,
+        message: "Le colis doit d'abord être récupéré"
+      });
+    }
+
+    // Mettre à jour le statut
+    await commande.update({
+      statut: 'en_cours',
+      date_debut_livraison: new Date()
+    });
+
+    console.log(`🚚 Livraison démarrée: ${commande.reference}`);
+
+    // Envoyer notification au client (expéditeur)
+    if (commande.user_email) {
+      await sendOrderStatusEmail(
+        commande.user_email,
+        commande.user_nom,
+        commande.user_prenom,
+        commande
+      );
+    }
+
+    // Envoyer notification au destinataire
+    if (commande.destinataire_email) {
+      await sendOrderStatusEmail(
+        commande.destinataire_email,
+        commande.destinataire_nom || 'Destinataire',
+        '',
+        commande
+      );
+    }
+
+    return res.status(200).json({
+      success: true,
+      message: "Livraison démarrée. En route vers le destinataire.",
+      commande: {
+        id: commande.id,
+        reference: commande.reference,
+        statut: commande.statut,
+        destinataire_adresse: commande.destinataire_adresse,
+        date_debut_livraison: commande.date_debut_livraison
+      }
+    });
+
+  } catch (error) {
+  console.error("Erreur démarrage livraison:", error);
+  return res.status(500).json({
+    success: false,
+    message: "Erreur lors du démarrage de la livraison"
+  });
+}
 });
 
 // @desc    Récupérer les commandes disponibles pour livraison
@@ -143,16 +316,17 @@ const getCommandesDisponibles = asyncHandler(async (req, res) => {
   }
 });
 
-// @desc    Récupérer MES commandes en cours de livraison
+// @desc    Récupérer MES livraisons (acceptees, recuperees, en_cours)
 // @route   GET /api/livreur/commandes/mes-livraisons
 const getMesLivraisons = asyncHandler(async (req, res) => {
   const livreurId = req.livreur.id;
 
   try {
+    // ← MODIFIÉ: inclure tous les statuts actifs
     const commandes = await Commande.findAll({
       where: {
         livreur_id: livreurId,
-        statut: 'en_cours'
+        statut: ['acceptee', 'recuperee', 'en_cours']
       },
       order: [['date_acceptation', 'DESC']],
       limit: 100
@@ -202,7 +376,7 @@ const terminerLivraison = asyncHandler(async (req, res) => {
     if (commande.statut !== 'en_cours') {
       return res.status(400).json({
         success: false,
-        message: "Cette commande ne peut pas être livrée"
+        message: "La livraison doit d'abord être démarrée"
       });
     }
 
@@ -289,7 +463,7 @@ const updatePosition = asyncHandler(async (req, res) => {
       {
         where: {
           livreur_id: livreurId,
-          statut: 'en_cours'
+          statut: 'en_cours'  // ← Position mise à jour SEULEMENT si en_cours
         }
       }
     );
@@ -385,6 +559,8 @@ const getHistoriqueLivraisons = asyncHandler(async (req, res) => {
 module.exports = {
   getCommandesDisponibles,
   accepterCommande,
+  recupererColis,         // ← NOUVEAU
+  demarrerLivraison,     // ← NOUVEAU
   terminerLivraison,
   updatePosition,
   getMesLivraisons,
